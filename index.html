@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dorrego Suites – Mapa 3D Depto B</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f1923; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+    #canvas-container { width: 100vw; height: 100vh; }
+    #ui {
+      position: absolute;
+      top: 16px; left: 16px;
+      color: #fff;
+      pointer-events: none;
+    }
+    #ui h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: 1px; }
+    #ui p  { font-size: 0.75rem; color: #9ab; margin-top: 4px; }
+    #legend {
+      position: absolute;
+      bottom: 24px; left: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .leg-item {
+      display: flex; align-items: center; gap: 8px;
+      color: #ddd; font-size: 0.78rem;
+    }
+    .leg-color {
+      width: 14px; height: 14px; border-radius: 3px;
+      flex-shrink: 0;
+    }
+    #controls-hint {
+      position: absolute;
+      bottom: 24px; right: 16px;
+      color: #556; font-size: 0.72rem;
+      text-align: right; line-height: 1.7;
+    }
+    /* room label overlay */
+    .room-label {
+      position: absolute;
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 3px #000;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div id="ui">
+  <h1>DORREGO SUITES</h1>
+  <p>Dorrego 975 · Monte Grande · Esteban Echeverría</p>
+  <p style="margin-top:8px;color:#6af;">■ Departamento B &nbsp;|&nbsp; <span style="color:#c96">■ Departamento A</span></p>
+</div>
+<div id="legend">
+  <div class="leg-item"><div class="leg-color" style="background:#3b82f6"></div>Cocina · Estar · Comedor</div>
+  <div class="leg-item"><div class="leg-color" style="background:#6366f1"></div>Dormitorio</div>
+  <div class="leg-item"><div class="leg-color" style="background:#0ea5e9"></div>Baño</div>
+  <div class="leg-item"><div class="leg-color" style="background:#d97706" style="opacity:0.5"></div>Depto A (referencia)</div>
+</div>
+<div id="controls-hint">
+  Arrastrar → rotar<br>
+  Rueda → zoom<br>
+  Clic derecho → desplazar
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ─── SCENE SETUP ────────────────────────────────────────────────────────────
+const W = window.innerWidth, H = window.innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1923);
+scene.fog = new THREE.Fog(0x0f1923, 30, 60);
+
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(8, 10, 14);
+camera.lookAt(5, 0, 3);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(5, 1, 3);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 3;
+controls.maxDistance = 30;
+controls.maxPolarAngle = Math.PI / 2.1;
+controls.update();
+
+// ─── LIGHTING ───────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xfff8e7, 1.2);
+sun.position.set(10, 18, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 50;
+sun.shadow.camera.left = -15;
+sun.shadow.camera.right = 15;
+sun.shadow.camera.top = 15;
+sun.shadow.camera.bottom = -15;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x8ab4f8, 0.3);
+fill.position.set(-8, 5, -5);
+scene.add(fill);
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+const WALL_H = 2.6;   // ceiling height in metres
+const WALL_T = 0.15;  // wall thickness
+
+function box(w, h, d, color, x, y, z, opacity = 1, emissive = 0x000000) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    emissive,
+    roughness: 0.65,
+    metalness: 0.05,
+    transparent: opacity < 1,
+    opacity,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function wall(w, h, d, color, x, z) {
+  return box(w, h, d, color, x, h / 2, z);
+}
+
+function floor(w, d, color, x, z) {
+  return box(w, 0.05, d, color, x, -0.025, z);
+}
+
+// ─── APARTMENT B (CELESTE) ──────────────────────────────────────────────────
+// Dimensions from floor plan (metres):
+//   Dormitorio:           ~3.39 wide × 3.12 deep
+//   Baño:                 ~1.41 wide × 2.20 deep
+//   Cocina·Estar·Comedor: ~4.83 wide × 5.15 deep
+//   Pasillo:              ~1.00 wide
+// Origin at front-left corner of Depto B.
+
+const bCol  = 0x1e3a5f;   // dark blue – floor / walls
+const bFlr  = 0x1d4ed8;   // bright blue floor tile
+const bWall = 0xcfe2ff;   // light blue wall
+const dormCol = 0x312e81; // indigo – bedroom
+const bathCol = 0x075985; // dark cyan – bathroom
+const livCol  = 0x1e40af; // blue – living
+
+// --- FLOORS ---
+floor(3.39, 3.12, dormCol, 3.39/2,           3.12/2);          // dormitorio
+floor(1.41, 2.20, bathCol, 3.39 + 1.41/2,    2.20/2);          // baño
+floor(4.83, 5.15, livCol,  3.39+1.41+4.83/2, 5.15/2);          // living
+floor(1.00, 3.12, 0x172554, 3.39 + 1.41/2,   3.12 - 3.12/2 + 2.20/2 + 0.46); // pasillo area
+
+// --- OUTER WALLS (Depto B) ---
+const wallMat = bWall;
+const wAlpha  = 0.92;
+// Front wall (z=0)
+wall(9.63, WALL_H, WALL_T, wallMat, 9.63/2, 0);
+// Back wall (z=5.15)
+wall(9.63, WALL_H, WALL_T, wallMat, 9.63/2, 5.15);
+// Left wall (x=0)
+wall(WALL_T, WALL_H, 5.15, wallMat, 0, 5.15/2);
+// Right wall (x=9.63)
+wall(WALL_T, WALL_H, 5.15, wallMat, 9.63, 5.15/2);
+
+// --- INTERIOR WALLS ---
+// Wall between dormitorio and baño/living (x=3.39)
+wall(WALL_T, WALL_H, 5.15, 0x93c5fd, 3.39, 5.15/2);
+// Wall between baño and living (x=3.39+1.41=4.80)
+wall(WALL_T, WALL_H, 2.20, 0x93c5fd, 4.80, 2.20/2);
+// Baño back wall (z=2.20)
+wall(1.41, WALL_H, WALL_T, 0x93c5fd, 3.39 + 1.41/2, 2.20);
+
+// ─── FURNITURE – DORMITORIO ─────────────────────────────────────────────────
+// Bed (1.4 × 2.0)
+box(1.4, 0.4, 2.0, 0xfafafa, 1.0, 0.2, 1.4);
+// Pillows
+box(0.55, 0.12, 0.45, 0xffd6d6, 0.65, 0.46, 2.25);
+box(0.55, 0.12, 0.45, 0xffd6d6, 1.35, 0.46, 2.25);
+// Headboard
+box(1.5, 0.6, 0.1, 0x374151, 1.0, 0.5, 2.42);
+// Wardrobe
+box(2.0, 2.0, 0.6, 0x4b5563, 0.9, 1.0, 0.35);
+// Nightstand
+box(0.45, 0.5, 0.45, 0x374151, 1.95, 0.25, 1.5);
+
+// ─── FURNITURE – BAÑO ───────────────────────────────────────────────────────
+const bx = 3.39 + 0.05; // baño left edge + small offset
+// Shower / bañera
+box(0.9, 0.35, 1.2, 0xbae6fd, bx + 0.5, 0.18, 1.7);
+// Toilet
+box(0.38, 0.4, 0.55, 0xf0f9ff, bx + 1.05, 0.2, 0.35);
+// Sink
+box(0.45, 0.1, 0.35, 0xe0f2fe, bx + 0.25, 0.78, 0.28);
+box(0.45, 0.76, 0.1, 0xd1d5db, bx + 0.25, 0.38, 0.1);
+
+// ─── FURNITURE – COCINA·ESTAR·COMEDOR ───────────────────────────────────────
+const lx = 4.80 + 0.1;  // living left edge
+// Kitchen counter (L-shape)
+box(3.5, 0.9, 0.6, 0x1e3a5f, lx + 1.75, 0.45, 0.35);   // main counter
+box(0.6, 0.9, 1.8, 0x1e3a5f, lx + 4.43 - 0.6, 0.45, 0.95); // side counter
+// Counter top surface
+box(3.5, 0.05, 0.6, 0xd1fae5, lx + 1.75, 0.93, 0.35);
+box(0.6, 0.05, 1.8, 0xd1fae5, lx + 4.43 - 0.6, 0.93, 0.95);
+// Stovetop
+box(0.6, 0.02, 0.55, 0x111827, lx + 0.7, 0.95, 0.35);
+// Sofa
+box(2.2, 0.42, 0.8, 0x1e40af, lx + 1.2, 0.21, 3.6);
+box(2.2, 0.55, 0.2, 0x1e40af, lx + 1.2, 0.48, 4.0); // backrest
+box(0.2, 0.55, 0.8, 0x1e40af, lx + 0.1, 0.48, 3.6);  // armrest L
+box(0.2, 0.55, 0.8, 0x1e40af, lx + 2.3, 0.48, 3.6);  // armrest R
+// Coffee table
+box(1.0, 0.06, 0.6, 0xd4a017, lx + 1.2, 0.55, 3.0);
+// Dining table
+box(1.6, 0.06, 0.8, 0xb45309, lx + 3.5, 0.75, 3.3);
+// Dining chairs (4)
+[[lx+2.8,3.1],[lx+4.2,3.1],[lx+2.8,3.55],[lx+4.2,3.55]].forEach(([cx,cz]) => {
+  box(0.4, 0.44, 0.4, 0x78350f, cx, 0.22, cz);
+  box(0.4, 0.4, 0.08, 0x78350f, cx, 0.62, cz + 0.17);
+});
+// TV unit
+box(1.4, 0.05, 0.4, 0x111827, lx + 1.2, 0.5, 1.5);
+box(1.2, 0.7, 0.06, 0x0f0f0f, lx + 1.2, 0.9, 1.52);
+
+// ─── APARTMENT A (REFERENCIA – dorado semitransparente) ─────────────────────
+const aZ = 5.15 + 0.3;  // apartment A starts behind B (gap for wall)
+const aW  = 9.63;
+const aD  = 5.20;
+const aAlpha = 0.35;
+
+floor(aW, aD, 0x78350f, aW/2, aZ + aD/2);
+// Outer walls A
+wall(aW, WALL_H, WALL_T, 0xfde68a, aW/2, aZ);           // front
+wall(aW, WALL_H, WALL_T, 0xfde68a, aW/2, aZ + aD);      // back
+wall(WALL_T, WALL_H, aD, 0xfde68a, 0, aZ + aD/2);       // left
+wall(WALL_T, WALL_H, aD, 0xfde68a, aW, aZ + aD/2);      // right
+// Interior wall A
+wall(WALL_T, WALL_H, aD, 0xfde68a, 3.45, aZ + aD/2);
+// Bed A
+box(1.4, 0.4, 2.0, 0xfef3c7, 1.5, 0.2, aZ + 2.5);
+box(1.5, 0.55, 0.1, 0x92400e, 1.5, 0.5, aZ + 3.52);
+// Sofa A
+box(2.0, 0.42, 0.8, 0xd97706, 6.5, 0.21, aZ + 2.5);
+// Kitchen counter A
+box(3.0, 0.9, 0.6, 0x92400e, 6.0, 0.45, aZ + 0.35);
+
+// ─── GROUND PLANE ───────────────────────────────────────────────────────────
+const groundGeo = new THREE.PlaneGeometry(40, 40);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x0a1628, roughness: 1 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.08;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ─── COMPASS / NORTH INDICATOR ──────────────────────────────────────────────
+const arrowGeo = new THREE.ConeGeometry(0.2, 0.6, 8);
+const arrowMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+arrow.position.set(-1.2, 0.4, -1.0);
+scene.add(arrow);
+
+// ─── GRID ───────────────────────────────────────────────────────────────────
+const grid = new THREE.GridHelper(20, 20, 0x1e3a5f, 0x1e293b);
+grid.position.set(5, -0.04, 5);
+scene.add(grid);
+
+// ─── RESIZE ─────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── ANIMATE ────────────────────────────────────────────────────────────────
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
