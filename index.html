@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dorrego Suites – Mapa 3D Depto B</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f1923; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+    #canvas-container { width: 100vw; height: 100vh; }
+    #ui {
+      position: absolute;
+      top: 16px; left: 16px;
+      color: #fff;
+      pointer-events: none;
+    }
+    #ui h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: 1px; }
+    #ui p  { font-size: 0.75rem; color: #9ab; margin-top: 4px; }
+    #legend {
+      position: absolute;
+      bottom: 24px; left: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .leg-item {
+      display: flex; align-items: center; gap: 8px;
+      color: #ddd; font-size: 0.78rem;
+    }
+    .leg-color {
+      width: 14px; height: 14px; border-radius: 3px;
+      flex-shrink: 0;
+    }
+    #controls-hint {
+      position: absolute;
+      bottom: 24px; right: 16px;
+      color: #556; font-size: 0.72rem;
+      text-align: right; line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div id="ui">
+  <h1>DORREGO SUITES</h1>
+  <p>Dorrego 975 · Monte Grande · Esteban Echeverría</p>
+  <p style="margin-top:8px;color:#6af;">■ Departamento B &nbsp;|&nbsp; <span style="color:#c96">■ Departamento A</span></p>
+</div>
+<div id="legend">
+  <div class="leg-item"><div class="leg-color" style="background:#3b82f6"></div>Cocina · Estar · Comedor</div>
+  <div class="leg-item"><div class="leg-color" style="background:#6366f1"></div>Dormitorio</div>
+  <div class="leg-item"><div class="leg-color" style="background:#0ea5e9"></div>Baño</div>
+  <div class="leg-item"><div class="leg-color" style="background:#d97706"></div>Depto A (referencia)</div>
+</div>
+<div id="controls-hint">
+  Arrastrar → rotar<br>
+  Rueda → zoom<br>
+  Clic derecho → desplazar
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1923);
+scene.fog = new THREE.Fog(0x0f1923, 30, 60);
+
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+camera.position.set(8, 10, 14);
+camera.lookAt(5, 0, 3);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(5, 1, 3);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 3;
+controls.maxDistance = 30;
+controls.maxPolarAngle = Math.PI / 2.1;
+controls.update();
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff8e7, 1.2);
+sun.position.set(10, 18, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 50;
+sun.shadow.camera.left = -15;
+sun.shadow.camera.right = 15;
+sun.shadow.camera.top = 15;
+sun.shadow.camera.bottom = -15;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8ab4f8, 0.3);
+fill.position.set(-8, 5, -5);
+scene.add(fill);
+
+const WALL_H = 2.6;
+const WALL_T = 0.15;
+
+function box(w, h, d, color, x, y, z) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.05 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+function wall(w, h, d, color, x, z) { return box(w, h, d, color, x, h/2, z); }
+function floor(w, d, color, x, z)   { return box(w, 0.05, d, color, x, -0.025, z); }
+
+// --- FLOORS DEPTO B ---
+floor(3.39, 3.12, 0x312e81, 3.39/2, 3.12/2);
+floor(1.41, 2.20, 0x075985, 3.39+1.41/2, 2.20/2);
+floor(4.83, 5.15, 0x1e40af, 3.39+1.41+4.83/2, 5.15/2);
+
+// --- OUTER WALLS B ---
+wall(9.63, WALL_H, WALL_T, 0xcfe2ff, 9.63/2, 0);
+wall(9.63, WALL_H, WALL_T, 0xcfe2ff, 9.63/2, 5.15);
+wall(WALL_T, WALL_H, 5.15, 0xcfe2ff, 0, 5.15/2);
+wall(WALL_T, WALL_H, 5.15, 0xcfe2ff, 9.63, 5.15/2);
+
+// --- INTERIOR WALLS B ---
+wall(WALL_T, WALL_H, 5.15, 0x93c5fd, 3.39, 5.15/2);
+wall(WALL_T, WALL_H, 2.20, 0x93c5fd, 4.80, 2.20/2);
+wall(1.41, WALL_H, WALL_T, 0x93c5fd, 3.39+1.41/2, 2.20);
+
+// --- DORMITORIO FURNITURE ---
+box(1.4, 0.4, 2.0, 0xfafafa, 1.0, 0.2, 1.4);
+box(0.55,0.12,0.45,0xffd6d6, 0.65,0.46,2.25);
+box(0.55,0.12,0.45,0xffd6d6, 1.35,0.46,2.25);
+box(1.5, 0.6, 0.1, 0x374151, 1.0, 0.5, 2.42);
+box(2.0, 2.0, 0.6, 0x4b5563, 0.9, 1.0, 0.35);
+box(0.45,0.5, 0.45,0x374151, 1.95,0.25,1.5);
+
+// --- BAÑO FURNITURE ---
+const bx = 3.39+0.05;
+box(0.9,0.35,1.2, 0xbae6fd, bx+0.5, 0.18,1.7);
+box(0.38,0.4,0.55,0xf0f9ff, bx+1.05,0.2, 0.35);
+box(0.45,0.1,0.35,0xe0f2fe, bx+0.25,0.78,0.28);
+box(0.45,0.76,0.1,0xd1d5db, bx+0.25,0.38,0.1);
+
+// --- LIVING FURNITURE ---
+const lx = 4.80+0.1;
+box(3.5,0.9,0.6, 0x1e3a5f, lx+1.75,0.45,0.35);
+box(0.6,0.9,1.8, 0x1e3a5f, lx+4.43-0.6,0.45,0.95);
+box(3.5,0.05,0.6,0xd1fae5, lx+1.75,0.93,0.35);
+box(0.6,0.05,1.8,0xd1fae5, lx+4.43-0.6,0.93,0.95);
+box(0.6,0.02,0.55,0x111827,lx+0.7,0.95,0.35);
+box(2.2,0.42,0.8, 0x1e40af, lx+1.2,0.21,3.6);
+box(2.2,0.55,0.2, 0x1e40af, lx+1.2,0.48,4.0);
+box(0.2,0.55,0.8, 0x1e40af, lx+0.1,0.48,3.6);
+box(0.2,0.55,0.8, 0x1e40af, lx+2.3,0.48,3.6);
+box(1.0,0.06,0.6, 0xd4a017, lx+1.2,0.55,3.0);
+box(1.6,0.06,0.8, 0xb45309, lx+3.5,0.75,3.3);
+[[lx+2.8,3.1],[lx+4.2,3.1],[lx+2.8,3.55],[lx+4.2,3.55]].forEach(([cx,cz])=>{
+  box(0.4,0.44,0.4,0x78350f,cx,0.22,cz);
+  box(0.4,0.4,0.08,0x78350f,cx,0.62,cz+0.17);
+});
+box(1.4,0.05,0.4,0x111827,lx+1.2,0.5,1.5);
+box(1.2,0.7,0.06,0x0f0f0f,lx+1.2,0.9,1.52);
+
+// --- DEPTO A (reference) ---
+const aZ=5.15+0.3, aW=9.63, aD=5.20;
+floor(aW,aD,0x78350f,aW/2,aZ+aD/2);
+wall(aW,WALL_H,WALL_T,0xfde68a,aW/2,aZ);
+wall(aW,WALL_H,WALL_T,0xfde68a,aW/2,aZ+aD);
+wall(WALL_T,WALL_H,aD,0xfde68a,0,aZ+aD/2);
+wall(WALL_T,WALL_H,aD,0xfde68a,aW,aZ+aD/2);
+wall(WALL_T,WALL_H,aD,0xfde68a,3.45,aZ+aD/2);
+box(1.4,0.4,2.0,0xfef3c7,1.5,0.2,aZ+2.5);
+box(1.5,0.55,0.1,0x92400e,1.5,0.5,aZ+3.52);
+box(2.0,0.42,0.8,0xd97706,6.5,0.21,aZ+2.5);
+box(3.0,0.9,0.6,0x92400e,6.0,0.45,aZ+0.35);
+
+// --- GROUND ---
+const groundGeo=new THREE.PlaneGeometry(40,40);
+const groundMat=new THREE.MeshStandardMaterial({color:0x0a1628,roughness:1});
+const ground=new THREE.Mesh(groundGeo,groundMat);
+ground.rotation.x=-Math.PI/2;
+ground.position.y=-0.08;
+ground.receiveShadow=true;
+scene.add(ground);
+
+const grid=new THREE.GridHelper(20,20,0x1e3a5f,0x1e293b);
+grid.position.set(5,-0.04,5);
+scene.add(grid);
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+(function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene,camera);
+})();
+</script>
+</body>
+</html>
